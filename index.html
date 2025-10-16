@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Photo Editor (Banana AI)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind for custom classes if needed -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'banana-yellow': '#F4E04D',
+                        'gemini-blue': '#1a73e8',
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Set Inter font as default */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+        }
+        /* Custom styles for better aesthetics */
+        .card {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        .loading-ring {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+        }
+        .loading-ring:after {
+            content: " ";
+            display: block;
+            width: 24px;
+            height: 24px;
+            margin: 3px;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            border-color: #fff transparent #fff transparent;
+            animation: loading-ring 1.2s linear infinite;
+        }
+        @keyframes loading-ring {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen">
+
+    <!-- Header -->
+    <header class="text-center mb-8">
+        <h1 class="text-4xl font-extrabold text-gray-800 flex items-center justify-center">
+            <svg class="w-8 h-8 mr-2 text-banana-yellow" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1.5-3.5a.75.75 0 01-1.5 0v-4a.75.75 0 011.5 0v4zM10 10a.75.75 0 01.75-.75h3.5a.75.75 0 010 1.5h-3.5a.75.75 0 01-.75-.75z" clip-rule="evenodd" />
+            </svg>
+            AI Photo Editor
+            <span class="ml-2 px-3 py-1 bg-banana-yellow text-gray-900 text-xs font-semibold rounded-full shadow-md">Powered by Banana AI</span>
+        </h1>
+        <p class="mt-2 text-lg text-gray-500">Transform images using text prompts (Image-to-Image Generation)</p>
+    </header>
+
+    <!-- Main Application Container -->
+    <main class="max-w-6xl mx-auto bg-white p-6 rounded-xl card">
+
+        <!-- Controls Section -->
+        <section class="mb-6 space-y-4">
+            <!-- File Input -->
+            <div>
+                <label for="imageUpload" class="block text-sm font-medium text-gray-700 mb-2">1. Upload Original Image (PNG/JPG)</label>
+                <input type="file" id="imageUpload" accept="image/png, image/jpeg" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gemini-blue file:text-white hover:file:bg-blue-600 cursor-pointer rounded-lg border border-gray-300 p-2">
+            </div>
+
+            <!-- Prompt Input -->
+            <div>
+                <label for="prompt" class="block text-sm font-medium text-gray-700 mb-2">2. Enter Edit Prompt</label>
+                <textarea id="prompt" rows="2" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-gemini-blue focus:border-gemini-blue transition duration-150" placeholder="e.g., 'Change the background to a tropical beach at sunset' or 'Give the person a robot head'"></textarea>
+            </div>
+
+            <!-- Action Button -->
+            <div class="flex justify-center">
+                <button id="editButton" onclick="processImage()" class="w-full sm:w-auto px-6 py-3 bg-gemini-blue text-white font-bold rounded-xl hover:bg-blue-600 transition duration-300 shadow-lg flex items-center justify-center disabled:opacity-50" disabled>
+                    <span id="buttonText">Apply AI Edit</span>
+                    <div id="loadingIndicator" class="hidden loading-ring ml-3"></div>
+                </button>
+            </div>
+        </section>
+
+        <!-- Image Display Section (Responsive Grid) -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+            <!-- Original Image Card -->
+            <div class="bg-gray-50 p-4 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center min-h-[300px]">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">Original Image</h2>
+                <img id="originalImagePreview" class="max-w-full h-auto rounded-lg shadow-md" src="https://placehold.co/400x300/e5e5e5/333333?text=Upload+Image+Above" alt="Original Image Preview" onerror="this.onerror=null;this.src='https://placehold.co/400x300/e5e5e5/333333?text=Error'">
+                <p id="originalStatus" class="mt-2 text-sm text-gray-500">Awaiting file upload...</p>
+            </div>
+
+            <!-- Edited Image Card -->
+            <div class="bg-gray-50 p-4 rounded-lg border-2 border-dashed border-gemini-blue flex flex-col items-center min-h-[300px]">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">AI Edited Image</h2>
+                <img id="editedImagePreview" class="max-w-full h-auto rounded-lg shadow-md" src="https://placehold.co/400x300/e5e5e5/333333?text=AI+Result+Here" alt="Edited Image Preview" onerror="this.onerror=null;this.src='https://placehold.co/400x300/e5e5e5/333333?text=Error'">
+                <p id="editedStatus" class="mt-2 text-sm text-gray-500">Result will appear here.</p>
+            </div>
+        </section>
+
+        <!-- Custom Message/Error Box -->
+        <div id="messageBox" class="mt-6 p-4 text-sm rounded-lg transition duration-300 hidden" role="alert"></div>
+
+    </main>
+
+    <script type="module">
+        // Global state
+        let uploadedBase64Image = null;
+        let uploadedMimeType = null;
+        const MODEL_NAME = 'gemini-2.5-flash-image-preview';
+
+        // UI Elements
+        const uploadInput = document.getElementById('imageUpload');
+        const promptInput = document.getElementById('prompt');
+        const editButton = document.getElementById('editButton');
+        const originalImagePreview = document.getElementById('originalImagePreview');
+        const editedImagePreview = document.getElementById('editedImagePreview');
+        const originalStatus = document.getElementById('originalStatus');
+        const editedStatus = document.getElementById('editedStatus');
+        const messageBox = document.getElementById('messageBox');
+        const buttonText = document.getElementById('buttonText');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // --- Helper Functions ---
+
+        /**
+         * Shows a temporary, styled message/error box.
+         * @param {string} message - The message to display.
+         * @param {string} type - 'success', 'error', or 'info'.
+         */
+        function showMessage(message, type = 'info') {
+            let bgColor, textColor;
+            switch (type) {
+                case 'success':
+                    bgColor = 'bg-green-100';
+                    textColor = 'text-green-800';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-100';
+                    textColor = 'text-red-800';
+                    break;
+                case 'info':
+                default:
+                    bgColor = 'bg-blue-100';
+                    textColor = 'text-blue-800';
+                    break;
+            }
+            messageBox.className = `mt-6 p-4 ${bgColor} ${textColor} rounded-lg transition duration-300`;
+            messageBox.innerHTML = message;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 5000);
+        }
+
+        /**
+         * Converts a File object to a Base64 string.
+         * @param {File} file - The uploaded file.
+         * @returns {Promise<string>} - Base64 data string (without mime type prefix).
+         */
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    // Extract the Base64 part only (remove 'data:image/jpeg;base64,')
+                    const base64String = reader.result.split(',')[1];
+                    resolve(base64String);
+                };
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        /**
+         * Sets the loading state for the button and disables controls.
+         * @param {boolean} isLoading - True to show loading, false to hide.
+         */
+        function setLoading(isLoading) {
+            editButton.disabled = isLoading || !uploadedBase64Image;
+            promptInput.disabled = isLoading;
+
+            if (isLoading) {
+                buttonText.textContent = 'Editing...';
+                loadingIndicator.classList.remove('hidden');
+                editedStatus.textContent = 'Generating AI transformation...';
+                editedImagePreview.src = 'https://placehold.co/400x300/9ca3af/ffffff?text=Processing...';
+            } else {
+                buttonText.textContent = 'Apply AI Edit';
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+
+        // --- Event Listeners ---
+
+        // Handle image file upload
+        uploadInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                uploadedBase64Image = null;
+                uploadedMimeType = null;
+                originalImagePreview.src = 'https://placehold.co/400x300/e5e5e5/333333?text=Upload+Image+Above';
+                originalStatus.textContent = 'Awaiting file upload...';
+                editButton.disabled = true;
+                showMessage('Please select an image file.', 'info');
+                return;
+            }
+
+            try {
+                // Check if file is an image and not too large (e.g., max 4MB)
+                if (!file.type.startsWith('image/')) {
+                    showMessage('Invalid file type. Please upload an image (PNG or JPG).', 'error');
+                    uploadInput.value = ''; // Clear file input
+                    return;
+                }
+                if (file.size > 4 * 1024 * 1024) {
+                    showMessage('File size limit is 4MB. Please upload a smaller image.', 'error');
+                    uploadInput.value = '';
+                    return;
+                }
+
+                uploadedMimeType = file.type;
+                uploadedBase64Image = await fileToBase64(file);
+                
+                // Set the preview image
+                originalImagePreview.src = URL.createObjectURL(file);
+                originalStatus.textContent = `File: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                
+                editButton.disabled = false;
+                showMessage('Image uploaded successfully! Enter your prompt.', 'success');
+
+            } catch (error) {
+                console.error('Error processing file:', error);
+                showMessage('Failed to process image file.', 'error');
+                editButton.disabled = true;
+            }
+        });
+
+
+        // --- Main AI Processing Function ---
+
+        window.processImage = async function() {
+            const userPrompt = promptInput.value.trim();
+
+            if (!uploadedBase64Image) {
+                showMessage('Please upload an image first.', 'error');
+                return;
+            }
+            if (!userPrompt) {
+                showMessage('Please enter an editing prompt.', 'error');
+                return;
+            }
+
+            setLoading(true);
+            editedImagePreview.src = 'https://placehold.co/400x300/9ca3af/ffffff?text=Processing...'; // Show processing placeholder
+
+            const apiKey = ""; // API key is provided by the environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: userPrompt },
+                        {
+                            inlineData: {
+                                mimeType: uploadedMimeType,
+                                data: uploadedBase64Image
+                            }
+                        }
+                    ]
+                }],
+                generationConfig: {
+                    responseModalities: ['IMAGE', 'TEXT']
+                },
+            };
+
+            const MAX_RETRIES = 5;
+            let currentRetry = 0;
+
+            while (currentRetry < MAX_RETRIES) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 429 && currentRetry < MAX_RETRIES - 1) {
+                            const delay = Math.pow(2, currentRetry) * 1000 + Math.random() * 1000;
+                            console.warn(`Rate limit hit (429). Retrying in ${delay / 1000}s...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            currentRetry++;
+                            continue; // Skip to next iteration
+                        }
+                        const errorData = await response.json();
+                        throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+                    if (!base64Data) {
+                        throw new Error("AI response was successful but did not contain image data. Try a different prompt.");
+                    }
+
+                    // Display the resulting image
+                    const imageUrl = `data:image/png;base64,${base64Data}`;
+                    editedImagePreview.src = imageUrl;
+                    editedStatus.textContent = 'Image successfully transformed!';
+                    showMessage('Image transformation complete!', 'success');
+                    break; // Exit the loop on success
+
+                } catch (error) {
+                    console.error('Gemini API Call failed:', error.message);
+                    showMessage(`Image editing failed: ${error.message}. Please check your prompt and try again.`, 'error');
+                    editedStatus.textContent = 'Error during transformation.';
+                    editedImagePreview.src = 'https://placehold.co/400x300/ef4444/ffffff?text=ERROR';
+                    break; // Exit loop on permanent failure
+                } finally {
+                    setLoading(false);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
